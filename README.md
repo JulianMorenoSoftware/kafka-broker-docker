@@ -105,7 +105,7 @@ docker compose down -v
 | `KAFKA_PROCESS_ROLES` | Define qué rol(es) cumple este nodo. `broker,controller` significa que el mismo nodo actúa como **broker** (maneja tópicos y datos) y como **controller** (gestiona metadatos del clúster), típico de un setup de un solo nodo en modo KRaft. |
 | `KAFKA_CONTROLLER_QUORUM_VOTERS` | Lista de los nodos que forman el quórum de controllers, en formato `id@host:puerto`. Aquí `1@broker:29093` indica que el nodo con ID `1` es accesible en `broker:29093` para las tareas de controller. |
 | `KAFKA_LISTENERS` | Direcciones y puertos internos en los que Kafka escucha conexiones, por nombre de listener. `CONTROLLER://:29093` (comunicación entre controllers), `PLAINTEXT_HOST://:9092` (acceso desde fuera del contenedor) y `PLAINTEXT://:19092` (comunicación interna entre brokers dentro de la red de Docker). |
-| `KAFKA_ADVERTISED_LISTENERS` | Direcciones que Kafka anuncia a los clientes para que sepan cómo conectarse. `PLAINTEXT_HOST://192.168.2.10:9092` es la dirección que usan los clientes externos (ajustar a la IP real de tu host), y `PLAINTEXT://broker:19092` es la dirección usada por otros servicios dentro de la red Docker (como Kafka UI). |
+| `KAFKA_ADVERTISED_LISTENERS` | Direcciones que Kafka anuncia a los clientes para que sepan cómo conectarse. `PLAINTEXT_HOST://${KAFKA_ADVERTISED_HOST:-localhost}:9092` es la dirección que usan los clientes externos — por defecto `localhost`, override vía la variable de entorno `KAFKA_ADVERTISED_HOST` (ver sección "Exponer el broker en tu red" abajo) — y `PLAINTEXT://broker:19092` es la dirección usada por otros servicios dentro de la red Docker (como Kafka UI). |
 | `KAFKA_LISTENER_SECURITY_PROTOCOL_MAP` | Mapea cada nombre de listener a un protocolo de seguridad. En este caso todos usan `PLAINTEXT` (sin cifrado ni autenticación), pensado solo para entornos de desarrollo. |
 | `KAFKA_CONTROLLER_LISTENER_NAMES` | Indica cuál de los listeners definidos se usa exclusivamente para el tráfico de controller (`CONTROLLER`). |
 | `KAFKA_INTER_BROKER_LISTENER_NAME` | Indica qué listener usan los brokers para comunicarse entre sí (`PLAINTEXT`). |
@@ -148,7 +148,21 @@ docker compose down -v
 | `kafka-secrets` | Almacena certificados y secretos usados por Kafka (`/etc/kafka/secrets`), relevante si en el futuro se habilita SSL/SASL. |
 | `kafka-config` | Almacena configuración compartida montada en `/mnt/shared/config`. |
 
-## Notas
+## Exponer el broker en tu red (más allá de `localhost`)
+
+Por defecto, `KAFKA_ADVERTISED_LISTENERS` anuncia `localhost:9092`, lo cual solo permite conectarse desde clientes que corren en la **misma máquina** que el broker. Si necesitás que otro equipo de tu red (o de la red de la empresa) se conecte a este broker, exportá la variable `KAFKA_ADVERTISED_HOST` con la IP real de tu host **antes** de levantar los servicios:
+
+```bash
+KAFKA_ADVERTISED_HOST=<ip-real-de-tu-host> docker compose up -d
+```
+
+También podés crear un archivo `.env` local (no versionado, agregalo a `.gitignore` si no está) con:
+
+```
+KAFKA_ADVERTISED_HOST=<ip-real-de-tu-host>
+```
+
+## 🔒 Nota de seguridad
 
 - Esta configuración usa el protocolo `PLAINTEXT` (sin autenticación ni cifrado), pensada **únicamente para entornos de desarrollo local**. No usar en producción sin agregar seguridad (SSL/SASL).
-- El valor de `KAFKA_ADVERTISED_LISTENERS` para `PLAINTEXT_HOST` incluye una IP fija (`192.168.2.10`). Si tu máquina tiene otra IP o vas a acceder desde otra red, ajustá ese valor (o usá `localhost`/`127.0.0.1` si solo accedés desde el mismo host).
+- Este repositorio es **público**. Por eso `KAFKA_ADVERTISED_LISTENERS` usa `localhost` como valor por defecto en vez de una IP real de la red interna: publicar la IP exacta de un broker sin autenticación en un repo público facilita el reconocimiento de red a cualquiera que ya tenga acceso a esa LAN. Nunca commitees un valor real de `KAFKA_ADVERTISED_HOST` en `docker-compose.yml` — usá la variable de entorno o un `.env` local no versionado, como se explica arriba.
